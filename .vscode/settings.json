@@ -1,0 +1,10 @@
+{
+  "editor.formatOnSave": true,
+  "editor.defaultFormatter": "llvm-vs-code-extensions.vscode-clangd",
+  "C_Cpp.clang_format_style": "file",   // looks for .clang-format
+  "clangd.arguments": [
+    "--clang-tidy",
+    "--clang-tidy-checks=*",
+    "--clang-format-style=file"
+  ]
+}

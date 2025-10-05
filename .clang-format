@@ -1,0 +1,30 @@
+# .clang-format
+BasedOnStyle: LLVM
+IndentWidth: 4
+TabWidth: 4
+UseTab: Never
+ColumnLimit: 100
+AllowShortFunctionsOnASingleLine: Empty
+BreakBeforeBraces: Allman
+SpacesInParentheses: false
+SpaceAfterCStyleCast: true
+PointerAlignment: Left
+DerivePointerAlignment: false
+AllowShortIfStatementsOnASingleLine: Never
+NamespaceIndentation: All
+IndentCaseLabels: true
+SortIncludes: true
+IncludeBlocks: Regroup
+IncludeCategories:
+- Regex: '^<[^/]+>$'
+Priority: 1
+- Regex: '^<.*/>'
+Priority: 2
+- Regex: '^[^"]+\.h(pp)?$'
+Priority: 3
+- Regex: '^"'
+Priority: 4
+QualifierAlignment: Left
+AlignConsecutiveAssignments: Consecutive
+AlignConsecutiveDeclarations: Consecutive
+ReflowComments: true

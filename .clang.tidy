@@ -1,0 +1,68 @@
+# .clang-tidy
+Checks: >-
+-*,
+readability-identifier-naming,
+modernize-*,
+performance-*,
+cppcoreguidelines-avoid-goto,
+cppcoreguidelines-non-private-member-variables-in-classes,
+cppcoreguidelines-pro-bounds-array-to-pointer-decay,
+cppcoreguidelines-pro-type-const-cast,
+cppcoreguidelines-pro-type-cstyle-cast,
+cppcoreguidelines-pro-type-reinterpret-cast,
+hicpp-use-override,
+readability-braces-around-statements,
+readability-implicit-bool-conversion,
+readability-magic-numbers
+
+
+WarningsAsErrors: ''
+
+
+CheckOptions:
+# ---- Methods ----
+- { key: readability-identifier-naming.PublicMethodCase, value: lower_case }
+- { key: readability-identifier-naming.ProtectedMethodCase, value: camelBack }
+- { key: readability-identifier-naming.PrivateMethodCase, value: CamelCase }
+
+
+# ---- Fields ----
+- { key: readability-identifier-naming.PublicMemberCase, value: lower_case }
+- { key: readability-identifier-naming.PublicMemberPrefix, value: _ }
+
+
+- { key: readability-identifier-naming.ProtectedMemberCase, value: camelBack }
+- { key: readability-identifier-naming.ProtectedMemberPrefix, value: '' }
+
+
+- { key: readability-identifier-naming.PrivateMemberCase, value: camelBack }
+- { key: readability-identifier-naming.PrivateMemberPrefix, value: _ }
+
+
+# ---- Constants (per access) ----
+- { key: readability-identifier-naming.PublicConstantCase, value: lower_case }
+- { key: readability-identifier-naming.PublicConstantPrefix, value: _k }
+
+
+- { key: readability-identifier-naming.ProtectedConstantCase, value: camelBack }
+- { key: readability-identifier-naming.ProtectedConstantPrefix, value: k }
+
+
+- { key: readability-identifier-naming.PrivateConstantCase, value: CamelCase }
+- { key: readability-identifier-naming.PrivateConstantPrefix, value: _k }
+
+
+# ---- Types ----
+- { key: readability-identifier-naming.TypeCase, value: PascalCase }
+- { key: readability-identifier-naming.EnumCase, value: PascalCase }
+- { key: readability-identifier-naming.EnumConstantCase, value: PascalCase }
+
+
+# ---- Namespaces & Files ----
+- { key: readability-identifier-naming.NamespaceCase, value: lower_case }
+- { key: readability-identifier-naming.GlobalFunctionCase, value: lower_case }
+
+
+# NOTE: Enforcing pointer/ownership suffixes (Ptr/Uptr/Sptr/Wptr/Own/Ref)
+# is not natively supported by readability-identifier-naming per-type.
+# If desired, add a custom script or pre-commit regex check.
