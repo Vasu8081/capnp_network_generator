@@ -49,10 +49,6 @@ private:
     /// @param enum_decl The enum to generate.
     /// @return The enum class definition code.
     std::string _generate_enum_class(const EnumDecl& enum_decl);
-
-    /// @brief Generate the MessageType enum from schema messages.
-    /// @return The MessageType enum class definition code.
-    std::string _generate_message_type_enum();
 };
 
 } // namespace curious::dsl::capnpgen

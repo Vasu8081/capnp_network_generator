@@ -294,21 +294,21 @@ std::string CppHeaderGenerator::_generate_header_content(const Message& message,
     content << _generate_field_declarations(message);
 
     // User methods
-    content << "    " << USER_METHODS_START << "\n";
+    content << USER_METHODS_START << "\n";
     if (!user_methods.empty())
     {
         content << user_methods;
     }
-    content << "    " << USER_METHODS_END << "\n\n";
+    content << USER_METHODS_END << "\n\n";
 
     // Protected section
     content << "protected:\n";
-    content << "    " << USER_PROTECTED_START << "\n";
+    content << USER_PROTECTED_START << "\n";
     if (!user_protected.empty())
     {
         content << user_protected;
     }
-    content << "    " << USER_PROTECTED_END << "\n\n";
+    content << USER_PROTECTED_END << "\n\n";
 
     // Private section
     content << "private:\n";
@@ -316,12 +316,12 @@ std::string CppHeaderGenerator::_generate_header_content(const Message& message,
     content << "    /// @param other The instance to copy from.\n";
     content << "    void _copy_from(const " << message.name << "& other);\n\n";
 
-    content << "    " << USER_PRIVATE_START << "\n";
+    content << USER_PRIVATE_START << "\n";
     if (!user_private.empty())
     {
         content << user_private;
     }
-    content << "    " << USER_PRIVATE_END << "\n";
+    content << USER_PRIVATE_END << "\n";
 
     content << "};\n\n";
 

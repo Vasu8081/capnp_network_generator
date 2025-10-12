@@ -138,33 +138,15 @@ void CppSourceGenerator::_generate_source_for_message(const Message& message)
     fs::path output_file_path = fs::path(_outputDirectory) / (message.name + ".cpp");
 
     // Read user-defined sections
-    std::string user_impl_includes = _read_user_section(output_file_path.string(),
-                                                         USER_IMPL_INCLUDES_START,
-                                                         USER_IMPL_INCLUDES_END);
-    std::string user_constructor = _read_user_section(output_file_path.string(),
-                                                       USER_CONSTRUCTOR_START,
-                                                       USER_CONSTRUCTOR_END);
-    std::string user_to_capnp = _read_user_section(output_file_path.string(),
-                                                     USER_TO_CAPNP_START,
-                                                     USER_TO_CAPNP_END);
-    std::string user_from_capnp = _read_user_section(output_file_path.string(),
-                                                       USER_FROM_CAPNP_START,
-                                                       USER_FROM_CAPNP_END);
-    std::string user_copy_from = _read_user_section(output_file_path.string(),
-                                                      USER_COPY_FROM_START,
-                                                      USER_COPY_FROM_END);
-    std::string user_impl = _read_user_section(output_file_path.string(),
-                                                 USER_IMPL_START,
-                                                 USER_IMPL_END);
+    std::string user_impl_includes = _read_user_section(output_file_path.string(), USER_IMPL_INCLUDES_START, USER_IMPL_INCLUDES_END);
+    std::string user_constructor = _read_user_section(output_file_path.string(), USER_CONSTRUCTOR_START, USER_CONSTRUCTOR_END);
+    std::string user_to_capnp = _read_user_section(output_file_path.string(), USER_TO_CAPNP_START, USER_TO_CAPNP_END);
+    std::string user_from_capnp = _read_user_section(output_file_path.string(), USER_FROM_CAPNP_START, USER_FROM_CAPNP_END);
+    std::string user_copy_from = _read_user_section(output_file_path.string(), USER_COPY_FROM_START, USER_COPY_FROM_END);
+    std::string user_impl = _read_user_section(output_file_path.string(), USER_IMPL_START, USER_IMPL_END);
 
     // Generate content
-    std::string content = _generate_source_content(message,
-                                                     user_impl_includes,
-                                                     user_constructor,
-                                                     user_to_capnp,
-                                                     user_from_capnp,
-                                                     user_copy_from,
-                                                     user_impl);
+    std::string content = _generate_source_content(message, user_impl_includes, user_constructor, user_to_capnp, user_from_capnp, user_copy_from, user_impl);
 
     // Write to file
     std::ofstream output_file(output_file_path, std::ios::binary);
@@ -176,8 +158,7 @@ void CppSourceGenerator::_generate_source_for_message(const Message& message)
     output_file << content;
 }
 
-std::string CppSourceGenerator::_generate_constructor(const Message& message,
-                                                        const std::string& user_constructor)
+std::string CppSourceGenerator::_generate_constructor(const Message& message, const std::string& user_constructor)
 {
     std::ostringstream code;
 
@@ -190,19 +171,18 @@ std::string CppSourceGenerator::_generate_constructor(const Message& message,
     }
 
     code << "{\n";
-    code << "    " << USER_CONSTRUCTOR_START << "\n";
+    code << USER_CONSTRUCTOR_START << "\n";
     if (!user_constructor.empty())
     {
         code << user_constructor;
     }
-    code << "    " << USER_CONSTRUCTOR_END << "\n";
+    code << USER_CONSTRUCTOR_END << "\n";
     code << "}\n\n";
 
     return code.str();
 }
 
-std::string CppSourceGenerator::_generate_to_capnp(const Message& message,
-                                                     const std::string& user_to_capnp)
+std::string CppSourceGenerator::_generate_to_capnp(const Message& message, const std::string& user_to_capnp)
 {
     std::ostringstream code;
 
@@ -228,12 +208,12 @@ std::string CppSourceGenerator::_generate_to_capnp(const Message& message,
         code << "\n";
     }
 
-    code << "    " << USER_TO_CAPNP_START << "\n";
+    code << USER_TO_CAPNP_START << "\n";
     if (!user_to_capnp.empty())
     {
         code << user_to_capnp;
     }
-    code << "    " << USER_TO_CAPNP_END << "\n";
+    code << USER_TO_CAPNP_END << "\n";
     code << "}\n\n";
 
     return code.str();
@@ -265,12 +245,12 @@ std::string CppSourceGenerator::_generate_from_capnp(const Message& message,
         code << "\n";
     }
 
-    code << "    " << USER_FROM_CAPNP_START << "\n";
+    code << USER_FROM_CAPNP_START << "\n";
     if (!user_from_capnp.empty())
     {
         code << user_from_capnp;
     }
-    code << "    " << USER_FROM_CAPNP_END << "\n";
+    code << USER_FROM_CAPNP_END << "\n";
     code << "}\n\n";
 
     return code.str();
@@ -295,24 +275,18 @@ std::string CppSourceGenerator::_generate_copy_from(const Message& message,
         code << "\n";
     }
 
-    code << "    " << USER_COPY_FROM_START << "\n";
+    code << USER_COPY_FROM_START << "\n";
     if (!user_copy_from.empty())
     {
         code << user_copy_from;
     }
-    code << "    " << USER_COPY_FROM_END << "\n";
+    code << USER_COPY_FROM_END << "\n";
     code << "}\n\n";
 
     return code.str();
 }
 
-std::string CppSourceGenerator::_generate_source_content(const Message& message,
-                                                           const std::string& user_impl_includes,
-                                                           const std::string& user_constructor,
-                                                           const std::string& user_to_capnp,
-                                                           const std::string& user_from_capnp,
-                                                           const std::string& user_copy_from,
-                                                           const std::string& user_impl)
+std::string CppSourceGenerator::_generate_source_content(const Message& message, const std::string& user_impl_includes, const std::string& user_constructor, const std::string& user_to_capnp, const std::string& user_from_capnp, const std::string& user_copy_from, const std::string& user_impl)
 {
     std::ostringstream content;
 
