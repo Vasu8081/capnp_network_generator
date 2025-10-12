@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <sstream>
@@ -322,6 +323,7 @@ std::string CppSourceGenerator::_generate_source_content(const Message& message,
     content << "#include <capnp/message.h>\n";
     content << "#include <capnp/serialize.h>\n";
     content << "#include <kj/array.h>\n\n";
+    content << "#include \"" << _includePrefix << "enums.hpp\"\n";
     content << "#include \"" << _capnpHeaderName << "\"\n\n";
 
     // User implementation includes

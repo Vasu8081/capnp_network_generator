@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <sstream>
@@ -192,7 +193,8 @@ std::string CppHeaderGenerator::_generate_header_content(const Message& message,
     content << "#include <vector>\n";
     content << "#include <unordered_map>\n";
     content << "#include <memory>\n\n";
-    content << "#include \"message_base.hpp\"\n\n";
+    content << "#include \"message_base.hpp\"\n";
+    content << "#include \"enums.hpp\"\n\n";
 
     // Forward declare Cap'n Proto
     content << "// Forward declarations for Cap'n Proto\n";

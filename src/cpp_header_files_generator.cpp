@@ -1,5 +1,6 @@
 #include "cpp_header_files_generator.hpp"
 
+#include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <sstream>

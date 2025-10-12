@@ -1,4 +1,5 @@
 #include "capnp_file_generator.hpp"
+#include "cpp_enum_generator.hpp"
 #include "cpp_header_generator.hpp"
 #include "cpp_source_generator.hpp"
 #include "schema.hpp"
@@ -207,6 +208,10 @@ int main(int argc, char** argv)
             {
                 std::cout << "  Include prefix: " << include_prefix << "\n";
             }
+
+            // Generate enums first (required by headers and sources)
+            CppEnumGenerator enum_generator(schema, hpp_output, include_prefix);
+            std::cout << "✓ Generated enums.hpp with " << schema.enums.size() << " enum(s)\n";
 
             // Generate headers
             CppHeaderGenerator header_generator(schema, hpp_output);
