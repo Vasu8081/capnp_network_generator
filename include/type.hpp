@@ -4,7 +4,6 @@
 #include <string>
 #include <string_view>
 #include <vector>
-#include <stdexcept>
 
 #include "mappings.hpp"
 
@@ -12,9 +11,13 @@ namespace curious::dsl::capnpgen
 {
 
 /// @brief Represents a parsed DSL type (primitive, custom, enum, list, or map).
-/// Provides conversion utilities to C++ and Cap’n Proto type names.
-class Type final
+/// @details Provides conversion utilities to C++ and Cap'n Proto type names.
+class Type
 {
+    // Forward declaration for friend class
+    class TypeParser;
+    friend class TypeParser;
+
 public:
     /// @brief The category of DSL type.
     enum class Kind
@@ -30,89 +33,113 @@ public:
     Type();
 
     /// @brief Construct by parsing a single DSL line.
+    /// @param line A DSL field declaration (e.g., "vector<int> numbers;").
     explicit Type(std::string_view line);
 
-    /// @name Copy / Move Semantics
-    /// @{
+    /// @brief Copy constructor.
     Type(const Type& other);
-    Type& operator=(const Type& other);
-    Type(Type&&) noexcept = default;
-    Type& operator=(Type&&) noexcept = default;
-    /// @}
 
-    /// @name Observers
-    /// @{
-    Kind kind() const noexcept;
+    /// @brief Copy assignment operator.
+    Type& operator=(const Type& other);
+
+    /// @brief Move constructor.
+    Type(Type&&) noexcept = default;
+
+    /// @brief Move assignment operator.
+    Type& operator=(Type&&) noexcept = default;
+
+    /// @brief Destructor.
+    ~Type() = default;
+
+    /// @brief Get the kind of this type.
+    /// @return The type category.
+    Kind get_kind() const noexcept;
+
+    /// @brief Check if this is a primitive type.
+    /// @return True if the kind is Primitive.
     bool is_primitive() const noexcept;
+
+    /// @brief Check if this is a custom type.
+    /// @return True if the kind is Custom.
     bool is_custom() const noexcept;
+
+    /// @brief Check if this is an enum type.
+    /// @return True if the kind is Enum.
     bool is_enum() const noexcept;
+
+    /// @brief Check if this is a list type.
+    /// @return True if the kind is List.
     bool is_list() const noexcept;
+
+    /// @brief Check if this is a map type.
+    /// @return True if the kind is Map.
     bool is_map() const noexcept;
 
-    /// @brief Name of the parsed field.
-    const std::string& field_name() const noexcept;
+    /// @brief Get the name of the parsed field.
+    /// @return The field name.
+    const std::string& get_field_name() const noexcept;
 
-    /// @brief Name of the custom/enum type (if applicable).
-    const std::string& custom_name() const noexcept;
+    /// @brief Get the name of the custom/enum type (if applicable).
+    /// @return The custom type name.
+    const std::string& get_custom_name() const noexcept;
 
-    /// @brief Enum values (only populated if this represents an enum).
-    const std::vector<std::string>& enum_values() const noexcept;
+    /// @brief Get the enum values (only populated if this represents an enum).
+    /// @return A vector of enum value names.
+    const std::vector<std::string>& get_enum_values() const noexcept;
 
-    /// @brief Element type (valid only if kind()==List).
-    const Type* element() const noexcept;
+    /// @brief Get the element type (valid only if kind==List).
+    /// @return Pointer to the element type, or nullptr if not a list.
+    const Type* get_element_type() const noexcept;
 
-    /// @brief Map key type (valid only if kind()==Map).
-    const Type* key() const noexcept;
+    /// @brief Get the map key type (valid only if kind==Map).
+    /// @return Pointer to the key type, or nullptr if not a map.
+    const Type* get_key_type() const noexcept;
 
-    /// @brief Map value type (valid only if kind()==Map).
-    const Type* value() const noexcept;
-    /// @}
+    /// @brief Get the map value type (valid only if kind==Map).
+    /// @return Pointer to the value type, or nullptr if not a map.
+    const Type* get_value_type() const noexcept;
 
-    /// @brief Get the corresponding C++ type string (e.g., `std::vector<int>`).
-    std::string cpp_type() const;
+    /// @brief Get the corresponding C++ type string (e.g., std::vector<int>).
+    /// @return The C++ type representation.
+    std::string get_cpp_type() const;
 
-    /// @brief Get the corresponding Cap’n Proto type string.
-    std::string capnp_type() const;
-
-    /// @brief Apply visitor-style pattern matching.
-    /// @tparam FPrim Function for primitive
-    /// @tparam FCustom Function for custom
-    /// @tparam FEnum Function for enum
-    /// @tparam FList Function for list
-    /// @tparam FMap Function for map
-    template <class FPrim, class FCustom, class FEnum, class FList, class FMap>
-    decltype(auto) match(FPrim fprim, FCustom fcustom, FEnum fenum, FList flist, FMap fmap) const
-    {
-        switch (_kind)
-        {
-            case Kind::Primitive: return fprim(_primitive);
-            case Kind::Custom:    return fcustom(_customName);
-            case Kind::Enum:      return fenum(_customName, _enumValues);
-            case Kind::List:      return flist(*_elem);
-            case Kind::Map:       return fmap(*_key, *_value);
-        }
-        throw std::logic_error("unknown Type::Kind");
-    }
+    /// @brief Get the corresponding Cap'n Proto type string.
+    /// @return The Cap'n Proto type representation.
+    std::string get_capnp_type() const;
 
     /// @brief Parse a DSL type+field declaration from a single line.
-    /// @param line Example: `"vector<int> numbers;"`
+    /// @param line Example: "vector<int> numbers;"
     /// @return A constructed Type object.
-    static Type from_line(std::string_view line);
+    static Type parse_from_line(std::string_view line);
 
 private:
-    // ---- Private Data Members ----
-    Kind _kind { Kind::Primitive };           ///< Kind of type.
-    DslType  _primitive { DslType::Custom };           ///< Primitive mapping (if kind==Primitive).
-    std::string _customName;                  ///< Custom or enum type name.
-    std::vector<std::string> _enumValues;     ///< Enum values (if kind==Enum).
-    std::unique_ptr<Type> _elem;              ///< Element type (if kind==List).
-    std::unique_ptr<Type> _key;               ///< Key type (if kind==Map).
-    std::unique_ptr<Type> _value;             ///< Value type (if kind==Map).
-    std::string _fieldName;                   ///< Field name in DSL struct.
+    /// @brief The kind of type.
+    Kind _kind{Kind::Primitive};
 
-    // ---- Private Helpers ----
+    /// @brief Primitive mapping (if kind==Primitive).
+    DslType _primitiveType{DslType::Custom};
+
+    /// @brief Custom or enum type name.
+    std::string _customName;
+
+    /// @brief Enum values (if kind==Enum).
+    std::vector<std::string> _enumValues;
+
+    /// @brief Element type (if kind==List).
+    std::unique_ptr<Type> _elementType;
+
+    /// @brief Key type (if kind==Map).
+    std::unique_ptr<Type> _keyType;
+
+    /// @brief Value type (if kind==Map).
+    std::unique_ptr<Type> _valueType;
+
+    /// @brief Field name in DSL struct.
+    std::string _fieldName;
+
     /// @brief Deep copy helper used by copy constructor and assignment.
-    void CopyFrom(const Type& other);
+    /// @param other The type to copy from.
+    void _copy_from(const Type& other);
 };
 
 } // namespace curious::dsl::capnpgen

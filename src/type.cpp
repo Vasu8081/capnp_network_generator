@@ -2,35 +2,253 @@
 
 #include <cctype>
 #include <stdexcept>
-#include <unordered_map>
-#include <utility>
 
 namespace curious::dsl::capnpgen
 {
+
+/// @brief Helper class to parse type declarations from DSL syntax.
+class Type::TypeParser
+{
+public:
+    /// @brief Construct a parser for the given line.
+    /// @param line The DSL line to parse.
+    explicit TypeParser(std::string_view line)
+        : _source(line)
+    {
+    }
+
+    /// @brief Parse the complete type and field name.
+    /// @return A fully constructed Type object.
+    Type parse()
+    {
+        _skip_whitespace();
+        Type result = _parse_type();
+        result._fieldName = _parse_field_name();
+        _skip_whitespace();
+
+        // Optional trailing semicolon
+        if (_position < _source.size() && _source[_position] == ';')
+        {
+            ++_position;
+        }
+
+        return result;
+    }
+
+private:
+    std::string_view _source;
+    std::size_t _position{0};
+
+    /// @brief Skip whitespace at current position.
+    void _skip_whitespace()
+    {
+        while (_position < _source.size() &&
+               std::isspace(static_cast<unsigned char>(_source[_position])))
+        {
+            ++_position;
+        }
+    }
+
+    /// @brief Consume a specific character, throwing if not found.
+    /// @param expected The character that must be at the current position.
+    void _expect_char(char expected)
+    {
+        _skip_whitespace();
+        if (_position >= _source.size() || _source[_position] != expected)
+        {
+            throw std::runtime_error(std::string("Expected '") + expected + "'");
+        }
+        ++_position;
+    }
+
+    /// @brief Try to consume a specific character.
+    /// @param c The character to try consuming.
+    /// @return True if the character was consumed.
+    bool _try_consume(char c)
+    {
+        _skip_whitespace();
+        if (_position < _source.size() && _source[_position] == c)
+        {
+            ++_position;
+            return true;
+        }
+        return false;
+    }
+
+    /// @brief Read an identifier at the current position.
+    /// @return The identifier string.
+    std::string _read_identifier()
+    {
+        _skip_whitespace();
+        std::size_t start = _position;
+
+        while (_position < _source.size())
+        {
+            char c = _source[_position];
+            if (std::isalnum(static_cast<unsigned char>(c)) || c == '_' || c == ':')
+            {
+                ++_position;
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        if (_position == start)
+        {
+            throw std::runtime_error("Expected identifier");
+        }
+
+        std::string identifier(_source.substr(start, _position - start));
+        _skip_whitespace();
+        return identifier;
+    }
+
+    /// @brief Convert a string to lowercase.
+    /// @param str The string to convert.
+    /// @return A lowercase version of the string.
+    static std::string _to_lower(const std::string& str)
+    {
+        std::string result;
+        result.reserve(str.size());
+        for (char c : str)
+        {
+            result.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(c))));
+        }
+        return result;
+    }
+
+    /// @brief Check if an identifier is a list keyword.
+    /// @param identifier_lower The lowercase identifier.
+    /// @return True if it represents a list type.
+    static bool _is_list_keyword(const std::string& identifier_lower)
+    {
+        return identifier_lower == "list" ||
+               identifier_lower == "vector" ||
+               identifier_lower == "std::vector";
+    }
+
+    /// @brief Check if an identifier is a map keyword.
+    /// @param identifier_lower The lowercase identifier.
+    /// @return True if it represents a map type.
+    static bool _is_map_keyword(const std::string& identifier_lower)
+    {
+        return identifier_lower == "map" ||
+               identifier_lower == "unordered_map" ||
+               identifier_lower == "std::map" ||
+               identifier_lower == "std::unordered_map";
+    }
+
+    /// @brief Try to resolve an identifier as a primitive type.
+    /// @param identifier The identifier to check.
+    /// @param out_type Output parameter for the resolved DslType.
+    /// @return True if resolved as a primitive.
+    static bool _try_resolve_primitive(const std::string& identifier, DslType& out_type)
+    {
+        // Try exact match first
+        auto it = string_to_dsl_map.find(identifier);
+        if (it != string_to_dsl_map.end())
+        {
+            out_type = it->second;
+            return true;
+        }
+
+        // Try case-insensitive match
+        std::string lower = _to_lower(identifier);
+        auto it2 = string_to_dsl_map.find(lower);
+        if (it2 != string_to_dsl_map.end())
+        {
+            out_type = it2->second;
+            return true;
+        }
+
+        return false;
+    }
+
+    /// @brief Parse a type (possibly nested).
+    /// @return A Type object.
+    Type _parse_type()
+    {
+        std::string identifier = _read_identifier();
+        std::string identifier_lower = _to_lower(identifier);
+
+        // Handle list types
+        if (_is_list_keyword(identifier_lower))
+        {
+            _expect_char('<');
+            Type list_type;
+            list_type._kind = Type::Kind::List;
+            list_type._elementType = std::make_unique<Type>(_parse_type());
+            _expect_char('>');
+            return list_type;
+        }
+
+        // Handle map types
+        if (_is_map_keyword(identifier_lower))
+        {
+            _expect_char('<');
+            Type map_type;
+            map_type._kind = Type::Kind::Map;
+            map_type._keyType = std::make_unique<Type>(_parse_type());
+            _expect_char(',');
+            map_type._valueType = std::make_unique<Type>(_parse_type());
+            _expect_char('>');
+            return map_type;
+        }
+
+        // Try to resolve as primitive
+        Type result;
+        DslType primitive_type;
+        if (_try_resolve_primitive(identifier, primitive_type))
+        {
+            result._kind = Type::Kind::Primitive;
+            result._primitiveType = primitive_type;
+        }
+        else
+        {
+            // Must be custom type
+            result._kind = Type::Kind::Custom;
+            result._customName = identifier;
+        }
+
+        return result;
+    }
+
+    /// @brief Parse the field name.
+    /// @return The field name string.
+    std::string _parse_field_name()
+    {
+        return _read_identifier();
+    }
+};
+
+// ---- Type constructors and assignment ----
 
 Type::Type() = default;
 
 Type::Type(std::string_view line)
 {
-    *this = from_line(line);
+    *this = parse_from_line(line);
 }
 
 Type::Type(const Type& other)
 {
-    CopyFrom(other);
+    _copy_from(other);
 }
 
 Type& Type::operator=(const Type& other)
 {
     if (this != &other)
     {
-        CopyFrom(other);
+        _copy_from(other);
     }
     return *this;
 }
 
-// ---- observers ----
-Type::Kind Type::kind() const noexcept
+// ---- Type observers ----
+
+Type::Kind Type::get_kind() const noexcept
 {
     return _kind;
 }
@@ -60,242 +278,104 @@ bool Type::is_map() const noexcept
     return _kind == Kind::Map;
 }
 
-const std::string& Type::field_name() const noexcept
+const std::string& Type::get_field_name() const noexcept
 {
     return _fieldName;
 }
 
-const std::string& Type::custom_name() const noexcept
+const std::string& Type::get_custom_name() const noexcept
 {
     return _customName;
 }
 
-const std::vector<std::string>& Type::enum_values() const noexcept
+const std::vector<std::string>& Type::get_enum_values() const noexcept
 {
     return _enumValues;
 }
 
-const Type* Type::element() const noexcept
+const Type* Type::get_element_type() const noexcept
 {
-    return _elem.get();
+    return _elementType.get();
 }
 
-const Type* Type::key() const noexcept
+const Type* Type::get_key_type() const noexcept
 {
-    return _key.get();
+    return _keyType.get();
 }
 
-const Type* Type::value() const noexcept
+const Type* Type::get_value_type() const noexcept
 {
-    return _value.get();
+    return _valueType.get();
 }
 
-std::string Type::cpp_type() const
-{
-    switch (_kind)
-    {
-        case Kind::Primitive: return dsl_to_cpp_map.at(_primitive);
-        case Kind::Custom:
-        case Kind::Enum:      return _customName;
-        case Kind::List:      return "std::vector<" + _elem->cpp_type() + ">";
-        case Kind::Map:       return "std::unordered_map<" + _key->cpp_type() + "," + _value->cpp_type() + ">";
-    }
-    return {};
-}
+// ---- Type conversion methods ----
 
-std::string Type::capnp_type() const
+std::string Type::get_cpp_type() const
 {
     switch (_kind)
     {
-        case Kind::Primitive: return dsl_to_capnp_map.at(_primitive);
+        case Kind::Primitive:
+            return dsl_to_cpp_map.at(_primitiveType);
+
         case Kind::Custom:
-        case Kind::Enum:      return _customName;
-        case Kind::List:      return "List(" + _elem->capnp_type() + ")";
-        case Kind::Map:       return "Map(" + _key->capnp_type() + "," + _value->capnp_type() + ")";
+        case Kind::Enum:
+            return _customName;
+
+        case Kind::List:
+            return "std::vector<" + _elementType->get_cpp_type() + ">";
+
+        case Kind::Map:
+            return "std::unordered_map<" + _keyType->get_cpp_type() + ", " +
+                   _valueType->get_cpp_type() + ">";
     }
+
     return {};
 }
 
-// ------- parsing one field line -------
-Type Type::from_line(std::string_view line)
+std::string Type::get_capnp_type() const
 {
-    struct Parser
+    switch (_kind)
     {
-        std::string_view s;
-        std::size_t i { 0 };
+        case Kind::Primitive:
+            return dsl_to_capnp_map.at(_primitiveType);
 
-        void ws()
-        {
-            while (i < s.size() && std::isspace(static_cast<unsigned char>(s[i])) != 0)
-            {
-                ++i;
-            }
-        }
+        case Kind::Custom:
+        case Kind::Enum:
+            return _customName;
 
-        bool eat(char c)
-        {
-            ws();
-            if (i < s.size() && s[i] == c)
-            {
-                ++i;
-                return true;
-            }
-            return false;
-        }
+        case Kind::List:
+            return "List(" + _elementType->get_capnp_type() + ")";
 
-        void must(char c)
-        {
-            if (!eat(c))
-            {
-                throw std::runtime_error(std::string("expected '") + c + "'");
-            }
-        }
-
-        std::string ident()
-        {
-            ws();
-            std::size_t j = i;
-            while (j < s.size())
-            {
-                char c = s[j];
-                if (std::isalnum(static_cast<unsigned char>(c)) != 0 || c == '_' || c == ':')
-                {
-                    ++j;
-                }
-                else
-                {
-                    break;
-                }
-            }
-            if (j == i)
-            {
-                throw std::runtime_error("expected identifier");
-            }
-            std::string out(s.substr(i, j - i));
-            i = j;
-            ws();
-            return out;
-        }
-
-        static std::string lower(std::string x)
-        {
-            for (char& c : x)
-            {
-                c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
-            }
-            return x;
-        }
-
-        static bool is_list_kw(const std::string& low)
-        {
-            return low == "list" || low == "vector" || low == "std::vector";
-        }
-
-        static bool is_map_kw(const std::string& low)
-        {
-            return low == "map" || low == "unordered_map" || low == "std::map" || low == "std::unordered_map";
-        }
-
-        static bool resolve_primitive(const std::string& name, DslType& out)
-        {
-            if (auto it = string_to_dsl_map.find(name); it != string_to_dsl_map.end())
-            {
-                out = it->second;
-                return true;
-            }
-
-            std::string low;
-            low.reserve(name.size());
-            for (char c : name)
-            {
-                low.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(c))));
-            }
-            if (auto it2 = string_to_dsl_map.find(low); it2 != string_to_dsl_map.end())
-            {
-                out = it2->second;
-                return true;
-            }
-            return false;
-        }
-
-        Type parse_type()
-        {
-            std::string id = ident();
-            std::string low = lower(id);
-
-            if (is_list_kw(low))
-            {
-                must('<');
-                Type t;
-                t._kind = Type::Kind::List;
-                t._elem = std::make_unique<Type>(parse_type());
-                must('>');
-                ws();
-                return t;
-            }
-
-            if (is_map_kw(low))
-            {
-                must('<');
-                Type t;
-                t._kind = Type::Kind::Map;
-                t._key = std::make_unique<Type>(parse_type());
-                must(',');
-                t._value = std::make_unique<Type>(parse_type());
-                must('>');
-                ws();
-                return t;
-            }
-
-            Type t;
-            DslType prim {};
-            if (resolve_primitive(id, prim))
-            {
-                t._kind = Type::Kind::Primitive;
-                t._primitive = prim;
-            }
-            else
-            {
-                t._kind = Type::Kind::Custom;
-                t._customName = id;
-            }
-            ws();
-            return t;
-        }
-
-        std::string parse_field_name()
-        {
-            return ident();
-        }
-    };
-
-    Parser p { line, 0 };
-    p.ws();
-
-    Type T = p.parse_type();
-    T._fieldName = p.parse_field_name();
-
-    p.ws();
-    if (p.i < p.s.size() && p.s[p.i] == ';')
-    {
-        ++p.i;
+        case Kind::Map:
+            return "Map(" + _keyType->get_capnp_type() + ", " +
+                   _valueType->get_capnp_type() + ")";
     }
 
-    return T;
+    return {};
 }
 
-// ---- private ----
-void Type::CopyFrom(const Type& other)
+// ---- Static parsing method ----
+
+Type Type::parse_from_line(std::string_view line)
+{
+    TypeParser parser(line);
+    return parser.parse();
+}
+
+// ---- Private helper methods ----
+
+void Type::_copy_from(const Type& other)
 {
     _kind = other._kind;
-    _primitive = other._primitive;
+    _primitiveType = other._primitiveType;
     _customName = other._customName;
     _enumValues = other._enumValues;
     _fieldName = other._fieldName;
 
-    _elem.reset(other._elem ? new Type(*other._elem) : nullptr);
-    _key.reset(other._key ? new Type(*other._key) : nullptr);
-    _value.reset(other._value ? new Type(*other._value) : nullptr);
+    // Deep copy unique_ptr members
+    _elementType.reset(other._elementType ? new Type(*other._elementType) : nullptr);
+    _keyType.reset(other._keyType ? new Type(*other._keyType) : nullptr);
+    _valueType.reset(other._valueType ? new Type(*other._valueType) : nullptr);
 }
 
 } // namespace curious::dsl::capnpgen
