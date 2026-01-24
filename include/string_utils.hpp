@@ -44,6 +44,11 @@ bool starts_with_keyword(const std::string& str, const char* keyword);
 /// @return A new lowercase string.
 std::string to_lower(const std::string& str);
 
+/// @brief Convert dot-separated namespace to C++ format (::).
+/// @param ns The namespace string (e.g., "curious.message").
+/// @return The namespace in C++ format (e.g., "curious::message").
+std::string to_cpp_namespace(const std::string& ns);
+
 } // namespace string_utils
 
 } // namespace curious::dsl::capnpgen

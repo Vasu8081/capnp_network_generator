@@ -5,6 +5,7 @@
 #include <cstring>
 #include <filesystem>
 #include <fstream>
+#include <set>
 #include <sstream>
 #include <stdexcept>
 
@@ -110,7 +111,7 @@ std::string CppHeaderGenerator::_get_parent_class_name(const Message& message)
 {
     if (message.parent_name.empty())
     {
-        return "curious::dsl::capnpgen::MessageBase";
+        return "MessageBase";
     }
 
     return message.parent_name;
@@ -192,9 +193,47 @@ std::string CppHeaderGenerator::_generate_header_content(const Message& message,
     content << "#include <string>\n";
     content << "#include <vector>\n";
     content << "#include <unordered_map>\n";
-    content << "#include <memory>\n\n";
+    content << "#include <memory>\n";
+    content << "#include <kj/array.h>\n\n";
     content << "#include \"message_base.hpp\"\n";
-    content << "#include \"enums.hpp\"\n\n";
+    content << "#include \"enums.hpp\"\n";
+    content << "#include <messages/network_msg.capnp.h>\n";
+
+    // Include parent class header
+    if (!message.parent_name.empty())
+    {
+        content << "#include \"" << message.parent_name << ".hpp\"\n";
+    }
+
+    // Include headers for custom types used in fields
+    std::set<std::string> included_types;
+    for (const auto& field : message.fields)
+    {
+        std::string type_name;
+        if (field.get_kind() == Type::Kind::Custom)
+        {
+            type_name = field.get_custom_name();
+        }
+        else if (field.get_kind() == Type::Kind::List)
+        {
+            const Type* element_type = field.get_element_type();
+            if (element_type && element_type->get_kind() == Type::Kind::Custom)
+            {
+                type_name = element_type->get_custom_name();
+            }
+        }
+
+        if (!type_name.empty() &&
+            type_name != message.name &&
+            type_name != message.parent_name &&
+            included_types.find(type_name) == included_types.end() &&
+            _schema.messages.find(type_name) != _schema.messages.end())
+        {
+            content << "#include \"" << type_name << ".hpp\"\n";
+            included_types.insert(type_name);
+        }
+    }
+    content << "\n";
 
     // Forward declare Cap'n Proto
     content << "// Forward declarations for Cap'n Proto\n";
@@ -211,17 +250,14 @@ std::string CppHeaderGenerator::_generate_header_content(const Message& message,
     }
     content << USER_INCLUDES_END << "\n\n";
 
-    // Namespace
-    const std::string& ns = _schema.namespace_name.empty() ?
-                             "curious::message" : _schema.namespace_name;
+    // Namespace for wrapper classes (convert dot notation to C++ ::)
+    // Use wrapper_namespace_name if specified, otherwise fall back to namespace_name
+    const std::string& raw_ns = _schema.wrapper_namespace_name.empty() ?
+                                  _schema.namespace_name : _schema.wrapper_namespace_name;
+    const std::string ns = raw_ns.empty() ?
+                             "curious::net" :
+                             string_utils::to_cpp_namespace(raw_ns);
     content << "namespace " << ns << "\n{\n\n";
-
-    // Forward declarations for parent and related types
-    if (!message.parent_name.empty())
-    {
-        content << "// Forward declaration\n";
-        content << "class " << message.parent_name << ";\n\n";
-    }
 
     // Class declaration
     content << "/// @brief Auto-generated message class for " << message.name << ".\n";
@@ -266,7 +302,12 @@ std::string CppHeaderGenerator::_generate_header_content(const Message& message,
 
     content << "    /// @brief Serialize this message to a byte vector.\n";
     content << "    /// @return A vector containing the serialized message.\n";
+    content << "    /// @note For better performance, use serialize_fast() instead.\n";
     content << "    std::vector<std::uint8_t> serialize() const override;\n\n";
+
+    content << "    /// @brief Serialize this message with minimal copies.\n";
+    content << "    /// @return SerializedData containing word-aligned serialized data.\n";
+    content << "    SerializedData serialize_fast() const override;\n\n";
 
     content << "    /// @brief Deserialize from a byte vector.\n";
     content << "    /// @param data The serialized data.\n";
@@ -288,6 +329,18 @@ std::string CppHeaderGenerator::_generate_header_content(const Message& message,
     content << "    /// @brief Populate this object from a Cap'n Proto message reader.\n";
     content << "    /// @param message_reader The Cap'n Proto message reader to read from.\n";
     content << "    void from_capnp(::capnp::MessageReader& message_reader);\n\n";
+
+    content << "    /// @brief Convert this object to a Cap'n Proto struct builder (for nested types).\n";
+    content << "    /// @tparam StructBuilder The specific capnp struct builder type.\n";
+    content << "    /// @param builder The builder to populate.\n";
+    content << "    template<typename StructBuilder>\n";
+    content << "    void to_capnp_struct(StructBuilder&& builder) const;\n\n";
+
+    content << "    /// @brief Populate this object from a Cap'n Proto struct reader (for nested types).\n";
+    content << "    /// @tparam StructReader The specific capnp struct reader type.\n";
+    content << "    /// @param reader The reader to read from.\n";
+    content << "    template<typename StructReader>\n";
+    content << "    void from_capnp_struct(const StructReader& reader);\n\n";
 
     // Fields
     content << "    // ---- Generated Fields ----\n\n";
@@ -325,6 +378,34 @@ std::string CppHeaderGenerator::_generate_header_content(const Message& message,
 
     content << "};\n\n";
 
+    // Template implementations (must be in header)
+    content << "// ---- Template Implementation ----\n\n";
+
+    // to_capnp_struct template
+    content << "template<typename StructBuilder>\n";
+    content << "void " << message.name << "::to_capnp_struct(StructBuilder&& builder) const\n";
+    content << "{\n";
+    if (!message.parent_name.empty())
+    {
+        content << "    // Populate parent fields first\n";
+        content << "    " << message.parent_name << "::to_capnp_struct(builder);\n\n";
+    }
+    for (const auto& field : message.fields)
+    {
+        _generate_to_capnp_struct_field(content, field);
+    }
+    content << "}\n\n";
+
+    // from_capnp_struct template
+    content << "template<typename StructReader>\n";
+    content << "void " << message.name << "::from_capnp_struct(const StructReader& reader)\n";
+    content << "{\n";
+    for (const auto& field : message.fields)
+    {
+        _generate_from_capnp_struct_field(content, field);
+    }
+    content << "}\n\n";
+
     // Close namespace
     content << "} // namespace " << ns << "\n\n";
 
@@ -332,6 +413,108 @@ std::string CppHeaderGenerator::_generate_header_content(const Message& message,
     content << "#endif // " << guard_name << "\n";
 
     return content.str();
+}
+
+void CppHeaderGenerator::_generate_to_capnp_struct_field(std::ostringstream& content, const Type& field) const
+{
+    const std::string& field_name = field.get_field_name();
+    std::string capnp_method = _to_capnp_method_name(field_name);
+
+    if (field.get_kind() == Type::Kind::List)
+    {
+        const Type* element_type = field.get_element_type();
+        bool is_custom_element = element_type && element_type->get_kind() == Type::Kind::Custom &&
+                                   _schema.messages.find(element_type->get_custom_name()) != _schema.messages.end();
+
+        content << "    if (!" << field_name << ".empty())\n";
+        content << "    {\n";
+        content << "        auto list_builder = builder.init" << capnp_method << "(" << field_name << ".size());\n";
+        content << "        for (size_t i = 0; i < " << field_name << ".size(); ++i)\n";
+        content << "        {\n";
+
+        if (is_custom_element)
+        {
+            content << "            " << field_name << "[i].to_capnp_struct(list_builder[i]);\n";
+        }
+        else
+        {
+            content << "            list_builder.set(i, " << field_name << "[i]);\n";
+        }
+
+        content << "        }\n";
+        content << "    }\n";
+    }
+    else if (field.get_kind() == Type::Kind::Custom &&
+               _schema.messages.find(field.get_custom_name()) != _schema.messages.end())
+    {
+        content << "    " << field_name << ".to_capnp_struct(builder.init" << capnp_method << "());\n";
+    }
+    else if (field.get_kind() == Type::Kind::Enum ||
+               (field.get_kind() == Type::Kind::Custom && field.get_custom_name() == "MessageType"))
+    {
+        content << "    builder.set" << capnp_method << "(static_cast<::curious::message::"
+                  << field.get_custom_name() << ">(" << field_name << "));\n";
+    }
+    else
+    {
+        // Primitive types
+        content << "    builder.set" << capnp_method << "(" << field_name << ");\n";
+    }
+}
+
+void CppHeaderGenerator::_generate_from_capnp_struct_field(std::ostringstream& content, const Type& field) const
+{
+    const std::string& field_name = field.get_field_name();
+    std::string capnp_method = _to_capnp_method_name(field_name);
+
+    if (field.get_kind() == Type::Kind::List)
+    {
+        const Type* element_type = field.get_element_type();
+        bool is_custom_element = element_type && element_type->get_kind() == Type::Kind::Custom &&
+                                   _schema.messages.find(element_type->get_custom_name()) != _schema.messages.end();
+        std::string element_type_name = element_type ? element_type->get_custom_name() : "auto";
+
+        content << "    if (reader.has" << capnp_method << "())\n";
+        content << "    {\n";
+        content << "        auto list_reader = reader.get" << capnp_method << "();\n";
+        content << "        " << field_name << ".clear();\n";
+        content << "        " << field_name << ".reserve(list_reader.size());\n";
+        content << "        for (const auto& item : list_reader)\n";
+        content << "        {\n";
+
+        if (is_custom_element)
+        {
+            content << "            " << element_type_name << " elem;\n";
+            content << "            elem.from_capnp_struct(item);\n";
+            content << "            " << field_name << ".push_back(std::move(elem));\n";
+        }
+        else
+        {
+            content << "            " << field_name << ".push_back(item);\n";
+        }
+
+        content << "        }\n";
+        content << "    }\n";
+    }
+    else if (field.get_kind() == Type::Kind::Custom &&
+               _schema.messages.find(field.get_custom_name()) != _schema.messages.end())
+    {
+        content << "    if (reader.has" << capnp_method << "())\n";
+        content << "    {\n";
+        content << "        " << field_name << ".from_capnp_struct(reader.get" << capnp_method << "());\n";
+        content << "    }\n";
+    }
+    else if (field.get_kind() == Type::Kind::Enum ||
+               (field.get_kind() == Type::Kind::Custom && field.get_custom_name() == "MessageType"))
+    {
+        content << "    " << field_name << " = static_cast<" << field.get_custom_name()
+                  << ">(reader.get" << capnp_method << "());\n";
+    }
+    else
+    {
+        // Primitive types (including string)
+        content << "    " << field_name << " = reader.get" << capnp_method << "();\n";
+    }
 }
 
 } // namespace curious::dsl::capnpgen

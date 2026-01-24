@@ -71,8 +71,12 @@ public:
     /// @brief Destructor.
     ~Schema();
 
-    /// @brief Parsed namespace (e.g., "my.company.product").
+    /// @brief Parsed namespace for capnp types (e.g., "curious.message").
     std::string namespace_name;
+
+    /// @brief Parsed namespace for wrapper classes (e.g., "curious.net").
+    /// If empty, defaults to namespace_name.
+    std::string wrapper_namespace_name;
 
     /// @brief Messages by name.
     std::unordered_map<std::string, Message> messages;
@@ -102,6 +106,9 @@ private:
 
     /// @brief Parse a namespace declaration.
     void _parse_namespace();
+
+    /// @brief Parse a wrapper_namespace declaration.
+    void _parse_wrapper_namespace();
 
     /// @brief Parse an enum declaration.
     void _parse_enum();

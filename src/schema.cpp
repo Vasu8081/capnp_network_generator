@@ -47,6 +47,7 @@ void Schema::parse_from_file(const std::string& file_path)
 
     // Clear previous state
     namespace_name.clear();
+    wrapper_namespace_name.clear();
     messages.clear();
     enums.clear();
     _messageOrder.clear();
@@ -64,6 +65,10 @@ void Schema::parse_from_file(const std::string& file_path)
         {
             _parse_namespace();
         }
+        else if (token->is_keyword("wrapper_namespace"))
+        {
+            _parse_wrapper_namespace();
+        }
         else if (token->is_keyword("enum"))
         {
             _parse_enum();
@@ -74,7 +79,7 @@ void Schema::parse_from_file(const std::string& file_path)
         }
         else
         {
-            _throw_parse_error("Expected 'namespace', 'enum', or 'message'");
+            _throw_parse_error("Expected 'namespace', 'wrapper_namespace', 'enum', or 'message'");
         }
     }
 
@@ -172,6 +177,48 @@ void Schema::_parse_namespace()
     }
 
     namespace_name = std::move(ns);
+}
+
+void Schema::_parse_wrapper_namespace()
+{
+    _lexer->next_token(); // Consume 'wrapper_namespace'
+
+    auto name_token = _lexer->next_token();
+    if (!name_token.is_identifier())
+    {
+        _throw_parse_error("Expected identifier after 'wrapper_namespace'");
+    }
+
+    std::string ns = name_token.text;
+
+    // Handle dotted namespace (e.g., curious.net)
+    while (true)
+    {
+        auto dot_token = _lexer->peek_token();
+        if (!dot_token || !dot_token->is_keyword("."))
+        {
+            break;
+        }
+
+        _lexer->next_token(); // Consume '.'
+
+        auto part_token = _lexer->next_token();
+        if (!part_token.is_identifier())
+        {
+            _throw_parse_error("Expected identifier after '.'");
+        }
+
+        ns += ".";
+        ns += part_token.text;
+    }
+
+    auto semicolon = _lexer->next_token();
+    if (!semicolon.is_keyword(";"))
+    {
+        _throw_parse_error("Expected ';' after wrapper_namespace");
+    }
+
+    wrapper_namespace_name = std::move(ns);
 }
 
 void Schema::_parse_enum()

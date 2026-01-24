@@ -1,5 +1,6 @@
 #pragma once
 
+#include <sstream>
 #include <string>
 #include "schema.hpp"
 
@@ -68,6 +69,16 @@ private:
     /// @param message The message.
     /// @return The parent class name, or "MessageBase" if no parent.
     std::string _get_parent_class_name(const Message& message);
+
+    /// @brief Generate to_capnp_struct code for a single field.
+    /// @param content Output stream.
+    /// @param field The field.
+    void _generate_to_capnp_struct_field(std::ostringstream& content, const Type& field) const;
+
+    /// @brief Generate from_capnp_struct code for a single field.
+    /// @param content Output stream.
+    /// @param field The field.
+    void _generate_from_capnp_struct_field(std::ostringstream& content, const Type& field) const;
 };
 
 } // namespace curious::dsl::capnpgen

@@ -164,8 +164,13 @@ std::string CppHeaderFileGenerator::_generate_header_content(const Message& mess
     }
     content << USER_INCLUDES_END_MARKER << "\n\n";
 
-    // Namespace
-    const std::string& ns = _schema.namespace_name.empty() ? "curious::message" : _schema.namespace_name;
+    // Namespace for wrapper classes (convert dot notation to C++ ::)
+    // Use wrapper_namespace_name if specified, otherwise fall back to namespace_name
+    const std::string& raw_ns = _schema.wrapper_namespace_name.empty() ?
+                                  _schema.namespace_name : _schema.wrapper_namespace_name;
+    const std::string ns = raw_ns.empty() ?
+                             "curious::net" :
+                             string_utils::to_cpp_namespace(raw_ns);
     content << "namespace " << ns << "\n{\n\n";
 
     // Class definition

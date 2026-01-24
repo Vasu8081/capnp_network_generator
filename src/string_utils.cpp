@@ -69,6 +69,11 @@ std::string strip_comments(const std::string& input)
                     state = State::AfterSlash;
                     output.push_back(' '); // Placeholder
                 }
+                else if (c == '#')
+                {
+                    // Hash-style line comment (e.g., # comment)
+                    state = State::InLineComment;
+                }
                 else
                 {
                     output.push_back(c);
@@ -214,6 +219,21 @@ std::string to_lower(const std::string& str)
     for (char c : str)
     {
         result.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(c))));
+    }
+
+    return result;
+}
+
+std::string to_cpp_namespace(const std::string& ns)
+{
+    std::string result = ns;
+    std::string::size_type pos = 0;
+
+    // Replace all dots with ::
+    while ((pos = result.find('.', pos)) != std::string::npos)
+    {
+        result.replace(pos, 1, "::");
+        pos += 2;
     }
 
     return result;

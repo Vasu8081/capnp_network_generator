@@ -128,7 +128,12 @@ std::string CppSourceGenerator::_get_parent_class_name(const Message& message)
 
 std::string CppSourceGenerator::_get_capnp_struct_name(const std::string& message_name)
 {
-    return "NetworkMsg::" + message_name;
+    // Get the capnp namespace from namespace_name (not wrapper_namespace_name)
+    std::string capnp_ns = _schema.namespace_name.empty() ?
+                             "curious::message" :
+                             string_utils::to_cpp_namespace(_schema.namespace_name);
+
+    return "::" + capnp_ns + "::" + message_name;
 }
 
 void CppSourceGenerator::_generate_source_for_message(const Message& message)
@@ -296,7 +301,9 @@ std::string CppSourceGenerator::_generate_source_content(const Message& message,
     // Include Cap'n Proto headers
     content << "#include <capnp/message.h>\n";
     content << "#include <capnp/serialize.h>\n";
-    content << "#include <kj/array.h>\n\n";
+    content << "#include <kj/array.h>\n";
+    content << "#include <cstdlib>\n";
+    content << "#include <cstring>\n\n";
     content << "#include \"" << _includePrefix << "enums.hpp\"\n";
     content << "#include \"" << _capnpHeaderName << "\"\n\n";
 
@@ -308,9 +315,13 @@ std::string CppSourceGenerator::_generate_source_content(const Message& message,
     }
     content << USER_IMPL_INCLUDES_END << "\n\n";
 
-    // Namespace
-    const std::string& ns = _schema.namespace_name.empty() ?
-                             "curious::message" : _schema.namespace_name;
+    // Namespace for wrapper classes (convert dot notation to C++ ::)
+    // Use wrapper_namespace_name if specified, otherwise fall back to namespace_name
+    const std::string& raw_ns = _schema.wrapper_namespace_name.empty() ?
+                                  _schema.namespace_name : _schema.wrapper_namespace_name;
+    const std::string ns = raw_ns.empty() ?
+                             "curious::net" :
+                             string_utils::to_cpp_namespace(raw_ns);
     content << "namespace " << ns << "\n{\n\n";
 
     // Constructors and destructor
@@ -402,11 +413,21 @@ std::string CppSourceGenerator::_generate_source_content(const Message& message,
 
     content << "std::vector<std::uint8_t> " << message.name << "::serialize() const\n";
     content << "{\n";
+    content << "    auto fast = serialize_fast();\n";
+    content << "    return std::vector<std::uint8_t>(fast.bytes(), fast.bytes() + fast.size);\n";
+    content << "}\n\n";
+
+    content << "SerializedData " << message.name << "::serialize_fast() const\n";
+    content << "{\n";
     content << "    ::capnp::MallocMessageBuilder msg_builder;\n";
     content << "    to_capnp(msg_builder);\n\n";
     content << "    kj::Array<capnp::word> words = capnp::messageToFlatArray(msg_builder);\n";
-    content << "    auto bytes = words.asBytes();\n\n";
-    content << "    return std::vector<std::uint8_t>(bytes.begin(), bytes.end());\n";
+    content << "    const std::size_t byte_size = words.size() * sizeof(capnp::word);\n\n";
+    content << "    // Allocate aligned memory and take ownership\n";
+    content << "    void* buffer = std::aligned_alloc(alignof(capnp::word), byte_size);\n";
+    content << "    if (!buffer) return {};\n";
+    content << "    std::memcpy(buffer, words.begin(), byte_size);\n\n";
+    content << "    return SerializedData(buffer, byte_size, words.size());\n";
     content << "}\n\n";
 
     content << "bool " << message.name << "::deserialize(const std::vector<std::uint8_t>& data)\n";

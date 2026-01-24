@@ -135,8 +135,18 @@ void CapnpFileGenerator::_write_header(std::ostringstream& output) const
     // Import C++ namespace annotation
     output << "using Cxx = import \"/capnp/c++.capnp\";\n";
 
-    // Set C++ namespace
-    const std::string& ns = _schema.namespace_name.empty() ? "curious::message" : _schema.namespace_name;
+    // Capnp-generated types use namespace_name (e.g., curious::message).
+    // Wrapper classes use wrapper_namespace_name (e.g., curious::net).
+    std::string ns = _schema.namespace_name.empty() ? "curious::message" : _schema.namespace_name;
+
+    // Replace dots with :: for C++ namespace syntax
+    std::string::size_type pos = 0;
+    while ((pos = ns.find('.', pos)) != std::string::npos)
+    {
+        ns.replace(pos, 1, "::");
+        pos += 2;
+    }
+
     output << "$Cxx.namespace(\"" << ns << "\");\n\n";
 }
 
