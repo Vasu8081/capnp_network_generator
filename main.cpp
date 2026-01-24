@@ -1,6 +1,8 @@
 #include "capnp_file_generator.hpp"
 #include "cpp_enum_generator.hpp"
+#include "cpp_factory_generator.hpp"
 #include "cpp_header_generator.hpp"
+#include "cpp_message_base_generator.hpp"
 #include "cpp_source_generator.hpp"
 #include "schema.hpp"
 
@@ -209,7 +211,11 @@ int main(int argc, char** argv)
                 std::cout << "  Include prefix: " << include_prefix << "\n";
             }
 
-            // Generate enums first (required by headers and sources)
+            // Generate MessageBase first (required by all message classes)
+            CppMessageBaseGenerator message_base_generator(schema, hpp_output, include_prefix);
+            std::cout << "✓ Generated MessageBase.hpp\n";
+
+            // Generate enums (required by headers and sources)
             CppEnumGenerator enum_generator(schema, hpp_output, include_prefix);
             std::cout << "✓ Generated enums.hpp with " << schema.enums.size() << " enum(s)\n";
 
@@ -219,7 +225,11 @@ int main(int argc, char** argv)
 
             // Generate sources with include prefix
             CppSourceGenerator source_generator(schema, cpp_output, "network_msg.capnp.h", include_prefix);
-            std::cout << "✓ Generated " << schema.messages.size() << " source file(s)\n\n";
+            std::cout << "✓ Generated " << schema.messages.size() << " source file(s)\n";
+
+            // Generate factory builder
+            CppFactoryGenerator factory_generator(schema, hpp_output, include_prefix);
+            std::cout << "✓ Generated factory_builder.h\n\n";
 
             std::cout << "C++ Usage Example:\n";
             std::cout << "  #include <" << include_prefix << "MessageName.hpp>\n";

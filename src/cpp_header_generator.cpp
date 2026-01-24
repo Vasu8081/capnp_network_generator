@@ -195,7 +195,7 @@ std::string CppHeaderGenerator::_generate_header_content(const Message& message,
     content << "#include <unordered_map>\n";
     content << "#include <memory>\n";
     content << "#include <kj/array.h>\n\n";
-    content << "#include \"message_base.hpp\"\n";
+    content << "#include \"MessageBase.hpp\"\n";
     content << "#include \"enums.hpp\"\n";
     content << "#include <messages/network_msg.capnp.h>\n";
 
@@ -444,6 +444,22 @@ void CppHeaderGenerator::_generate_to_capnp_struct_field(std::ostringstream& con
         content << "        }\n";
         content << "    }\n";
     }
+    else if (field.get_kind() == Type::Kind::Map)
+    {
+        // Map types need special handling with entries
+        content << "    if (!" << field_name << ".empty())\n";
+        content << "    {\n";
+        content << "        auto map_builder = builder.init" << capnp_method << "();\n";
+        content << "        auto entries_builder = map_builder.initEntries(" << field_name << ".size());\n";
+        content << "        size_t idx = 0;\n";
+        content << "        for (const auto& [key, value] : " << field_name << ")\n";
+        content << "        {\n";
+        content << "            auto entry_builder = entries_builder[idx++];\n";
+        content << "            entry_builder.setKey(key);\n";
+        content << "            entry_builder.setValue(value);\n";
+        content << "        }\n";
+        content << "    }\n";
+    }
     else if (field.get_kind() == Type::Kind::Custom &&
                _schema.messages.find(field.get_custom_name()) != _schema.messages.end())
     {
@@ -455,9 +471,15 @@ void CppHeaderGenerator::_generate_to_capnp_struct_field(std::ostringstream& con
         content << "    builder.set" << capnp_method << "(static_cast<::curious::message::"
                   << field.get_custom_name() << ">(" << field_name << "));\n";
     }
+    else if (field.get_kind() == Type::Kind::Primitive && field.get_cpp_type() == "std::vector<uint8_t>")
+    {
+        // Data/Bytes type
+        content << "    builder.set" << capnp_method << "(kj::ArrayPtr<const kj::byte>(reinterpret_cast<const kj::byte*>("
+                  << field_name << ".data()), " << field_name << ".size()));\n";
+    }
     else
     {
-        // Primitive types
+        // Other primitive types
         content << "    builder.set" << capnp_method << "(" << field_name << ");\n";
     }
 }
@@ -496,6 +518,23 @@ void CppHeaderGenerator::_generate_from_capnp_struct_field(std::ostringstream& c
         content << "        }\n";
         content << "    }\n";
     }
+    else if (field.get_kind() == Type::Kind::Map)
+    {
+        // Map types need special handling with entries
+        content << "    if (reader.has" << capnp_method << "())\n";
+        content << "    {\n";
+        content << "        auto map_reader = reader.get" << capnp_method << "();\n";
+        content << "        " << field_name << ".clear();\n";
+        content << "        if (map_reader.hasEntries())\n";
+        content << "        {\n";
+        content << "            auto entries = map_reader.getEntries();\n";
+        content << "            for (const auto& entry : entries)\n";
+        content << "            {\n";
+        content << "                " << field_name << "[entry.getKey()] = entry.getValue();\n";
+        content << "            }\n";
+        content << "        }\n";
+        content << "    }\n";
+    }
     else if (field.get_kind() == Type::Kind::Custom &&
                _schema.messages.find(field.get_custom_name()) != _schema.messages.end())
     {
@@ -510,9 +549,17 @@ void CppHeaderGenerator::_generate_from_capnp_struct_field(std::ostringstream& c
         content << "    " << field_name << " = static_cast<" << field.get_custom_name()
                   << ">(reader.get" << capnp_method << "());\n";
     }
+    else if (field.get_kind() == Type::Kind::Primitive && field.get_cpp_type() == "std::vector<uint8_t>")
+    {
+        // Data/Bytes type
+        content << "    {\n";
+        content << "        auto data = reader.get" << capnp_method << "();\n";
+        content << "        " << field_name << ".assign(data.begin(), data.end());\n";
+        content << "    }\n";
+    }
     else
     {
-        // Primitive types (including string)
+        // Other primitive types (including string)
         content << "    " << field_name << " = reader.get" << capnp_method << "();\n";
     }
 }

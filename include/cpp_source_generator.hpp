@@ -111,6 +111,23 @@ private:
     /// @param message_name The message name.
     /// @return The Cap'n Proto struct name.
     std::string _get_capnp_struct_name(const std::string& message_name);
+
+    /// @brief Check if a type name is a schema-defined enum.
+    /// @param type_name The type name to check.
+    /// @return True if it's a schema enum.
+    bool _is_schema_enum(const std::string& type_name) const;
+
+    /// @brief Generate to_capnp code for a single field.
+    /// @param field The field to generate code for.
+    /// @param builder_expr The builder expression (e.g., "root").
+    /// @return Generated code.
+    std::string _generate_field_to_capnp(const Type& field, const std::string& builder_expr);
+
+    /// @brief Generate from_capnp code for a single field.
+    /// @param field The field to generate code for.
+    /// @param reader_expr The reader expression (e.g., "root").
+    /// @return Generated code.
+    std::string _generate_field_from_capnp(const Type& field, const std::string& reader_expr);
 };
 
 } // namespace curious::dsl::capnpgen

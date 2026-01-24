@@ -136,6 +136,64 @@ std::string CppSourceGenerator::_get_capnp_struct_name(const std::string& messag
     return "::" + capnp_ns + "::" + message_name;
 }
 
+bool CppSourceGenerator::_is_schema_enum(const std::string& type_name) const
+{
+    return _schema.enums.find(type_name) != _schema.enums.end();
+}
+
+std::string CppSourceGenerator::_generate_field_to_capnp(const Type& field, const std::string& builder_expr)
+{
+    std::ostringstream code;
+    const std::string& field_name = field.get_field_name();
+    std::string capnp_method = _to_capnp_method_name(field_name);
+
+    // Get the capnp namespace
+    std::string capnp_ns = _schema.namespace_name.empty() ?
+                             "curious::message" :
+                             string_utils::to_cpp_namespace(_schema.namespace_name);
+
+    // Check if custom type is a schema enum
+    if (field.is_custom())
+    {
+        std::string type_name = field.get_custom_name();
+        if (_is_schema_enum(type_name) || type_name == "MessageType")
+        {
+            // Enum type - use static_cast
+            code << "    " << builder_expr << ".set" << capnp_method << "(static_cast<::"
+                 << capnp_ns << "::" << type_name << ">(" << field_name << "));\n";
+            return code.str();
+        }
+    }
+
+    // For non-enum types, use the TypeConverter
+    code << TypeConverter::generate_to_capnp_code(field, builder_expr, field_name, field_name, 1);
+    return code.str();
+}
+
+std::string CppSourceGenerator::_generate_field_from_capnp(const Type& field, const std::string& reader_expr)
+{
+    std::ostringstream code;
+    const std::string& field_name = field.get_field_name();
+    std::string capnp_method = _to_capnp_method_name(field_name);
+
+    // Check if custom type is a schema enum
+    if (field.is_custom())
+    {
+        std::string type_name = field.get_custom_name();
+        if (_is_schema_enum(type_name) || type_name == "MessageType")
+        {
+            // Enum type - use static_cast, no has* check needed
+            code << "    " << field_name << " = static_cast<" << type_name << ">("
+                 << reader_expr << ".get" << capnp_method << "());\n";
+            return code.str();
+        }
+    }
+
+    // For non-enum types, use the TypeConverter
+    code << TypeConverter::generate_from_capnp_code(field, reader_expr, field_name, 1);
+    return code.str();
+}
+
 void CppSourceGenerator::_generate_source_for_message(const Message& message)
 {
     namespace fs = std::filesystem;
@@ -207,9 +265,8 @@ std::string CppSourceGenerator::_generate_to_capnp(const Message& message, const
     // Generate field conversions
     for (const auto& field : message.fields)
     {
-        std::string method_name = _to_capnp_method_name(field.get_field_name());
         code << "    // Field: " << field.get_field_name() << "\n";
-        code << TypeConverter::generate_to_capnp_code(field, "root", field.get_field_name(), field.get_field_name(), 1);
+        code << _generate_field_to_capnp(field, "root");
         code << "\n";
     }
 
@@ -246,7 +303,7 @@ std::string CppSourceGenerator::_generate_from_capnp(const Message& message,
     for (const auto& field : message.fields)
     {
         code << "    // Field: " << field.get_field_name() << "\n";
-        code << TypeConverter::generate_from_capnp_code(field, "root", field.get_field_name(), 1);
+        code << _generate_field_from_capnp(field, "root");
         code << "\n";
     }
 
@@ -305,7 +362,7 @@ std::string CppSourceGenerator::_generate_source_content(const Message& message,
     content << "#include <cstdlib>\n";
     content << "#include <cstring>\n\n";
     content << "#include \"" << _includePrefix << "enums.hpp\"\n";
-    content << "#include \"" << _capnpHeaderName << "\"\n\n";
+    content << "#include <messages/" << _capnpHeaderName << ">\n\n";
 
     // User implementation includes
     content << USER_IMPL_INCLUDES_START << "\n";

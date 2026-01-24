@@ -37,30 +37,37 @@ std::string TypeConverter::generate_from_capnp_code(const Type& field,
 
     if (field.is_primitive())
     {
-        // Primitive types: direct assignment
-        code << ind << target_var << " = " << reader_expr << ".get" << getter_name << "();\n";
+        std::string cpp_type = field.get_cpp_type();
+        if (cpp_type == "std::vector<uint8_t>")
+        {
+            // Bytes/Data type: copy from capnp Data reader
+            code << ind << "{\n";
+            code << ind << "    auto data = " << reader_expr << ".get" << getter_name << "();\n";
+            code << ind << "    " << target_var << ".assign(data.begin(), data.end());\n";
+            code << ind << "}\n";
+        }
+        else
+        {
+            // Other primitive types: direct assignment
+            code << ind << target_var << " = " << reader_expr << ".get" << getter_name << "();\n";
+        }
     }
-    else if (field.is_custom() || field.is_enum())
+    else if (field.is_enum() || (field.is_custom() && field.get_custom_name() == "MessageType"))
     {
-        // Custom/Enum types
+        // Enum types: direct static_cast (no has* method for primitive enums)
+        std::string type_name = field.get_custom_name();
+        code << ind << target_var << " = static_cast<" << type_name
+             << ">(" << reader_expr << ".get" << getter_name << "());\n";
+    }
+    else if (field.is_custom())
+    {
+        // Custom message types: use has* check
         std::string type_name = field.get_custom_name();
 
         code << ind << "if (" << reader_expr << ".has" << getter_name << "())\n";
         code << ind << "{\n";
-
-        if (type_name == "MessageType" || field.is_enum())
-        {
-            // Enum: static cast
-            code << ind << "    " << target_var << " = static_cast<" << type_name
-                 << ">(" << reader_expr << ".get" << getter_name << "());\n";
-        }
-        else
-        {
-            // Custom message: call from_capnp_struct
-            code << ind << "    " << target_var << ".from_capnp_struct("
-                 << reader_expr << ".get" << getter_name << "());\n";
-        }
-
+        code << ind << "    " << target_var << ".from_capnp_struct("
+             << reader_expr << ".get" << getter_name << "());\n";
         code << ind << "}\n";
     }
     else if (field.is_list())
@@ -156,8 +163,19 @@ std::string TypeConverter::generate_to_capnp_code(const Type& field,
 
     if (field.is_primitive())
     {
-        // Primitive types: direct set
-        code << ind << builder_expr << "." << setter_name << "(" << source_var << ");\n";
+        std::string cpp_type = field.get_cpp_type();
+        if (cpp_type == "std::vector<uint8_t>")
+        {
+            // Bytes/Data type: convert to kj::ArrayPtr
+            code << ind << builder_expr << "." << setter_name
+                 << "(kj::ArrayPtr<const kj::byte>(reinterpret_cast<const kj::byte*>("
+                 << source_var << ".data()), " << source_var << ".size()));\n";
+        }
+        else
+        {
+            // Other primitive types: direct set
+            code << ind << builder_expr << "." << setter_name << "(" << source_var << ");\n";
+        }
     }
     else if (field.is_custom() || field.is_enum())
     {
@@ -166,7 +184,7 @@ std::string TypeConverter::generate_to_capnp_code(const Type& field,
         if (type_name == "MessageType" || field.is_enum())
         {
             // Enum: static cast
-            code << ind << builder_expr << "." << setter_name << "(static_cast<NetworkMsg::"
+            code << ind << builder_expr << "." << setter_name << "(static_cast<::curious::message::"
                  << type_name << ">(" << source_var << "));\n";
         }
         else
@@ -197,7 +215,7 @@ std::string TypeConverter::generate_to_capnp_code(const Type& field,
         else if (element_type->is_enum())
         {
             std::string elem_type_name = element_type->get_custom_name();
-            code << ind << "        list_builder.set(i, static_cast<NetworkMsg::"
+            code << ind << "        list_builder.set(i, static_cast<::curious::message::"
                  << elem_type_name << ">(" << source_var << "[i]));\n";
         }
         else if (element_type->is_custom())
@@ -238,7 +256,7 @@ std::string TypeConverter::generate_to_capnp_code(const Type& field,
         else if (value_type->is_enum())
         {
             std::string val_type_name = value_type->get_custom_name();
-            code << ind << "        entry_builder.setValue(static_cast<NetworkMsg::"
+            code << ind << "        entry_builder.setValue(static_cast<::curious::message::"
                  << val_type_name << ">(value));\n";
         }
         else if (value_type->is_custom())

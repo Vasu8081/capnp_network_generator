@@ -139,6 +139,31 @@ std::string CppEnumGenerator::_generate_enum_class(const EnumDecl& enum_decl)
     code << "    }\n";
     code << "}\n\n";
 
+    // Add FromString function
+    code << "/// @brief Convert a string to " << enum_decl.name << " enum value.\n";
+    code << "/// @param str The string to convert.\n";
+    code << "/// @return The corresponding enum value, or first value if not found.\n";
+    code << "inline " << enum_decl.name << " " << enum_decl.name << "FromString(const std::string& str)\n";
+    code << "{\n";
+
+    for (const auto& enum_value : enum_decl.values)
+    {
+        code << "    if (str == \"" << enum_value.name << "\") return "
+             << enum_decl.name << "::" << enum_value.name << ";\n";
+    }
+
+    // Return first value as default
+    if (!enum_decl.values.empty())
+    {
+        code << "    return " << enum_decl.name << "::" << enum_decl.values[0].name << ";\n";
+    }
+    else
+    {
+        code << "    return static_cast<" << enum_decl.name << ">(0);\n";
+    }
+
+    code << "}\n\n";
+
     return code.str();
 }
 
@@ -153,7 +178,8 @@ std::string CppEnumGenerator::_generate_enums_header_content(const std::string& 
 
     // Includes
     content << "#include <cstdint>\n";
-    content << "#include <ostream>\n\n";
+    content << "#include <ostream>\n";
+    content << "#include <string>\n\n";
 
     // User includes
     content << USER_INCLUDES_START << "\n";

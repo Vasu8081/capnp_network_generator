@@ -48,6 +48,7 @@ inline const std::unordered_map<std::string, DslType> string_to_dsl_map =
     {"bool",     DslType::Bool},
     {"string",   DslType::String},
     {"bytes",    DslType::Bytes},
+    {"data",     DslType::Bytes},
     {"list",     DslType::List},
     {"map",      DslType::Map},
     {"enum",     DslType::Enum},
