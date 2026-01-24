@@ -49,6 +49,11 @@ std::string to_lower(const std::string& str);
 /// @return The namespace in C++ format (e.g., "curious::message").
 std::string to_cpp_namespace(const std::string& ns);
 
+/// @brief Convert PascalCase to lowerCamelCase (first letter lowercase).
+/// @param str The string in PascalCase (e.g., "YoutubeVideo").
+/// @return The string in lowerCamelCase (e.g., "youtubeVideo").
+std::string to_lower_camel_case(const std::string& str);
+
 } // namespace string_utils
 
 } // namespace curious::dsl::capnpgen

@@ -234,6 +234,8 @@ std::string CppSourceGenerator::_generate_constructor(const Message& message, co
     }
 
     code << "{\n";
+    // Initialize msgType to the correct value for this message type
+    code << "    msgType = MessageType::" << string_utils::to_lower_camel_case(message.name) << ";\n";
     code << USER_CONSTRUCTOR_START << "\n";
     if (!user_constructor.empty())
     {
@@ -243,6 +245,27 @@ std::string CppSourceGenerator::_generate_constructor(const Message& message, co
     code << "}\n\n";
 
     return code.str();
+}
+
+std::vector<Type> CppSourceGenerator::_get_all_fields(const Message& message) const
+{
+    std::vector<Type> all_fields;
+
+    // Recursively get parent fields first
+    if (!message.parent_name.empty())
+    {
+        auto parent_it = _schema.messages.find(message.parent_name);
+        if (parent_it != _schema.messages.end())
+        {
+            auto parent_fields = _get_all_fields(parent_it->second);
+            all_fields.insert(all_fields.end(), parent_fields.begin(), parent_fields.end());
+        }
+    }
+
+    // Add this message's own fields
+    all_fields.insert(all_fields.end(), message.fields.begin(), message.fields.end());
+
+    return all_fields;
 }
 
 std::string CppSourceGenerator::_generate_to_capnp(const Message& message, const std::string& user_to_capnp)
@@ -255,15 +278,11 @@ std::string CppSourceGenerator::_generate_to_capnp(const Message& message, const
     code << "{\n";
     code << "    auto root = message_builder.initRoot<" << capnp_struct << ">();\n\n";
 
-    // Call parent's method if exists
-    if (!message.parent_name.empty())
-    {
-        code << "    // Populate parent fields\n";
-        code << "    " << message.parent_name << "::to_capnp(message_builder);\n\n";
-    }
+    // Get ALL fields including inherited ones
+    auto all_fields = _get_all_fields(message);
 
-    // Generate field conversions
-    for (const auto& field : message.fields)
+    // Generate field conversions for all fields (inherited + own)
+    for (const auto& field : all_fields)
     {
         code << "    // Field: " << field.get_field_name() << "\n";
         code << _generate_field_to_capnp(field, "root");
@@ -292,15 +311,11 @@ std::string CppSourceGenerator::_generate_from_capnp(const Message& message,
     code << "{\n";
     code << "    auto root = message_reader.getRoot<" << capnp_struct << ">();\n\n";
 
-    // Call parent's method if exists
-    if (!message.parent_name.empty())
-    {
-        code << "    // Read parent fields\n";
-        code << "    " << message.parent_name << "::from_capnp(message_reader);\n\n";
-    }
+    // Get ALL fields including inherited ones
+    auto all_fields = _get_all_fields(message);
 
-    // Generate field conversions
-    for (const auto& field : message.fields)
+    // Generate field conversions for all fields (inherited + own)
+    for (const auto& field : all_fields)
     {
         code << "    // Field: " << field.get_field_name() << "\n";
         code << _generate_field_from_capnp(field, "root");

@@ -239,5 +239,17 @@ std::string to_cpp_namespace(const std::string& ns)
     return result;
 }
 
+std::string to_lower_camel_case(const std::string& str)
+{
+    if (str.empty())
+    {
+        return str;
+    }
+
+    std::string result = str;
+    result[0] = static_cast<char>(std::tolower(static_cast<unsigned char>(result[0])));
+    return result;
+}
+
 } // namespace string_utils
 } // namespace curious::dsl::capnpgen

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include <vector>
 #include "schema.hpp"
 
 namespace curious::dsl::capnpgen
@@ -128,6 +129,11 @@ private:
     /// @param reader_expr The reader expression (e.g., "root").
     /// @return Generated code.
     std::string _generate_field_from_capnp(const Type& field, const std::string& reader_expr);
+
+    /// @brief Get all fields including inherited ones from parent classes.
+    /// @param message The message.
+    /// @return Vector of all fields (parent fields first, then own fields).
+    std::vector<Type> _get_all_fields(const Message& message) const;
 };
 
 } // namespace curious::dsl::capnpgen
