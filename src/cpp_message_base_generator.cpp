@@ -69,59 +69,53 @@ std::string CppMessageBaseGenerator::_generate_message_base_content()
     content << "#include <memory>\n";
     content << "#include <string>\n";
     content << "#include <utility>\n\n";
+    content << "#include <kj/array.h>\n";
+    content << "#include <capnp/common.h>\n\n";
 
     // Open namespace
     content << "namespace " << ns << "\n";
     content << "{\n\n";
 
-    // SerializedData struct
-    content << "/// @brief Lightweight wrapper for serialized message data.\n";
-    content << "/// @details Holds a pointer to word-aligned data and its size.\n";
-    content << "///          The data is owned by this struct and freed on destruction.\n";
+    // SerializedData struct - zero-copy wrapper for Cap'n Proto data
+    content << "/// @brief Zero-copy wrapper for serialized Cap'n Proto message data.\n";
+    content << "/// @details Holds a kj::Array<capnp::word> directly from messageToFlatArray().\n";
+    content << "///          This avoids unnecessary copies - the data is allocated once by Cap'n Proto\n";
+    content << "///          and can be passed directly to the transport layer.\n";
     content << "struct SerializedData\n";
     content << "{\n";
-    content << "    void* data = nullptr;\n";
-    content << "    std::size_t size = 0;          // Size in bytes\n";
-    content << "    std::size_t word_count = 0;    // Size in words (8-byte units)\n\n";
+    content << "    kj::Array<capnp::word> words;\n\n";
 
     content << "    SerializedData() = default;\n";
-    content << "    SerializedData(void* ptr, std::size_t byte_size, std::size_t words)\n";
-    content << "        : data(ptr), size(byte_size), word_count(words) {}\n\n";
+    content << "    explicit SerializedData(kj::Array<capnp::word>&& w) : words(kj::mv(w)) {}\n\n";
 
-    content << "    // Move-only semantics\n";
+    content << "    // Move-only semantics (kj::Array is already move-only)\n";
     content << "    SerializedData(const SerializedData&) = delete;\n";
     content << "    SerializedData& operator=(const SerializedData&) = delete;\n\n";
 
-    content << "    SerializedData(SerializedData&& other) noexcept\n";
-    content << "        : data(other.data), size(other.size), word_count(other.word_count)\n";
-    content << "    {\n";
-    content << "        other.data = nullptr;\n";
-    content << "        other.size = 0;\n";
-    content << "        other.word_count = 0;\n";
-    content << "    }\n\n";
+    content << "    SerializedData(SerializedData&& other) noexcept = default;\n";
+    content << "    SerializedData& operator=(SerializedData&& other) noexcept = default;\n\n";
 
-    content << "    SerializedData& operator=(SerializedData&& other) noexcept\n";
-    content << "    {\n";
-    content << "        if (this != &other)\n";
-    content << "        {\n";
-    content << "            free(data);\n";
-    content << "            data = other.data;\n";
-    content << "            size = other.size;\n";
-    content << "            word_count = other.word_count;\n";
-    content << "            other.data = nullptr;\n";
-    content << "            other.size = 0;\n";
-    content << "            other.word_count = 0;\n";
-    content << "        }\n";
-    content << "        return *this;\n";
-    content << "    }\n\n";
-
-    content << "    ~SerializedData() { free(data); }\n\n";
+    content << "    ~SerializedData() = default;\n\n";
 
     content << "    /// @brief Check if data is valid.\n";
-    content << "    explicit operator bool() const { return data != nullptr && size > 0; }\n\n";
+    content << "    explicit operator bool() const { return words.size() > 0; }\n\n";
+
+    content << "    /// @brief Get raw data pointer.\n";
+    content << "    const void* data() const { return words.begin(); }\n\n";
+
+    content << "    /// @brief Get size in bytes.\n";
+    content << "    std::size_t size() const { return words.size() * sizeof(capnp::word); }\n\n";
+
+    content << "    /// @brief Get size in words (8-byte units).\n";
+    content << "    std::size_t word_count() const { return words.size(); }\n\n";
 
     content << "    /// @brief Get data as byte pointer.\n";
-    content << "    const std::uint8_t* bytes() const { return static_cast<const std::uint8_t*>(data); }\n";
+    content << "    const std::uint8_t* bytes() const { return reinterpret_cast<const std::uint8_t*>(words.begin()); }\n\n";
+
+    content << "    /// @brief Release ownership of the underlying array.\n";
+    content << "    /// @details Caller becomes responsible for the array's lifetime.\n";
+    content << "    ///          After calling this, the SerializedData is empty.\n";
+    content << "    kj::Array<capnp::word> release() { return kj::mv(words); }\n";
     content << "};\n\n";
 
     // MessageBase class

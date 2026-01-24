@@ -486,20 +486,15 @@ std::string CppSourceGenerator::_generate_source_content(const Message& message,
     content << "std::vector<std::uint8_t> " << message.name << "::serialize() const\n";
     content << "{\n";
     content << "    auto fast = serialize_fast();\n";
-    content << "    return std::vector<std::uint8_t>(fast.bytes(), fast.bytes() + fast.size);\n";
+    content << "    return std::vector<std::uint8_t>(fast.bytes(), fast.bytes() + fast.size());\n";
     content << "}\n\n";
 
     content << "SerializedData " << message.name << "::serialize_fast() const\n";
     content << "{\n";
     content << "    ::capnp::MallocMessageBuilder msg_builder;\n";
-    content << "    to_capnp(msg_builder);\n\n";
-    content << "    kj::Array<capnp::word> words = capnp::messageToFlatArray(msg_builder);\n";
-    content << "    const std::size_t byte_size = words.size() * sizeof(capnp::word);\n\n";
-    content << "    // Allocate aligned memory and take ownership\n";
-    content << "    void* buffer = std::aligned_alloc(alignof(capnp::word), byte_size);\n";
-    content << "    if (!buffer) return {};\n";
-    content << "    std::memcpy(buffer, words.begin(), byte_size);\n\n";
-    content << "    return SerializedData(buffer, byte_size, words.size());\n";
+    content << "    to_capnp(msg_builder);\n";
+    content << "    // Zero-copy: return the flat array directly without additional allocation\n";
+    content << "    return SerializedData(capnp::messageToFlatArray(msg_builder));\n";
     content << "}\n\n";
 
     content << "bool " << message.name << "::deserialize(const std::vector<std::uint8_t>& data)\n";
