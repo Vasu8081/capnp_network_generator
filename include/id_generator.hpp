@@ -26,6 +26,11 @@ public:
     /// @return A string like "@0x0123456789abcdef".
     static std::string format_id_as_hex(std::uint64_t id);
 
+    /// @brief Extract the file ID from an existing Cap'n Proto schema file.
+    /// @param file_path Path to the .capnp file.
+    /// @return The file ID if found, or 0 if not found or file doesn't exist.
+    static std::uint64_t extract_file_id_from_capnp(const std::string& file_path);
+
     /// @brief Compute FNV-1a 64-bit hash of a string.
     /// @param data The data to hash.
     /// @return The 64-bit hash value.

@@ -35,6 +35,11 @@ private:
     /// @return The resolved output file path.
     static std::string _resolve_output_path(const std::string& path);
 
+    /// @brief Initialize file ID by extracting from existing file or generating new.
+    /// @param resolved_path The resolved output file path.
+    /// @return Existing file ID if available, otherwise a new random ID.
+    static std::uint64_t _initialize_file_id(const std::string& resolved_path);
+
     /// @brief Write the file header (ID and namespace declaration).
     /// @param output The output stream to write to.
     void _write_header(std::ostringstream& output) const;

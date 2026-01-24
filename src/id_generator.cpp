@@ -1,7 +1,11 @@
 #include "id_generator.hpp"
 
+#include <cstdlib>
+#include <filesystem>
+#include <fstream>
 #include <iomanip>
 #include <random>
+#include <regex>
 #include <sstream>
 
 namespace curious::dsl::capnpgen
@@ -45,6 +49,44 @@ std::string IdGenerator::format_id_as_hex(std::uint64_t id)
         << std::setfill('0') << std::setw(16)
         << id;
     return oss.str();
+}
+
+std::uint64_t IdGenerator::extract_file_id_from_capnp(const std::string& file_path)
+{
+    namespace fs = std::filesystem;
+
+    // Check if file exists
+    if (!fs::exists(file_path))
+    {
+        return 0;
+    }
+
+    // Open and read the first line
+    std::ifstream file(file_path);
+    if (!file.is_open())
+    {
+        return 0;
+    }
+
+    std::string first_line;
+    if (!std::getline(file, first_line))
+    {
+        return 0;
+    }
+
+    // Parse the file ID from the first line
+    // Expected format: @0x<16 hex digits>;
+    std::regex id_pattern(R"(@0x([0-9a-fA-F]{1,16})\s*;)");
+    std::smatch match;
+
+    if (std::regex_search(first_line, match, id_pattern))
+    {
+        // Parse the hex string to uint64_t
+        std::string hex_str = match[1].str();
+        return std::strtoull(hex_str.c_str(), nullptr, 16);
+    }
+
+    return 0;
 }
 
 std::uint64_t IdGenerator::compute_fnv1a_hash(std::string_view data)

@@ -17,7 +17,7 @@ namespace curious::dsl::capnpgen
 CapnpFileGenerator::CapnpFileGenerator(const Schema& schema, const std::string& output_path)
     : _schema(schema)
     , _outputPath(_resolve_output_path(output_path))
-    , _fileId(IdGenerator::generate_random_id())
+    , _fileId(_initialize_file_id(_outputPath))
 {
     // Open output file
     std::ofstream output_file(_outputPath, std::ios::binary);
@@ -59,6 +59,21 @@ std::string CapnpFileGenerator::_resolve_output_path(const std::string& path)
     // Otherwise, treat as directory and create network_msg.capnp inside
     fs::create_directories(file_path);
     return (file_path / "network_msg.capnp").string();
+}
+
+std::uint64_t CapnpFileGenerator::_initialize_file_id(const std::string& resolved_path)
+{
+    // Try to extract existing file ID from the output file
+    std::uint64_t existing_id = IdGenerator::extract_file_id_from_capnp(resolved_path);
+
+    if (existing_id != 0)
+    {
+        // Reuse existing file ID to preserve derived IDs
+        return existing_id;
+    }
+
+    // No existing file or couldn't extract ID, generate new random ID
+    return IdGenerator::generate_random_id();
 }
 
 std::string CapnpFileGenerator::_to_capnp_identifier(const std::string& identifier)
