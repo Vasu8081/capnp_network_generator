@@ -425,6 +425,9 @@ void CppHeaderGenerator::_generate_to_capnp_struct_field(std::ostringstream& con
         const Type* element_type = field.get_element_type();
         bool is_custom_element = element_type && element_type->get_kind() == Type::Kind::Custom &&
                                    _schema.messages.find(element_type->get_custom_name()) != _schema.messages.end();
+        bool is_enum_element = element_type && (element_type->get_kind() == Type::Kind::Enum ||
+                                   (element_type->get_kind() == Type::Kind::Custom &&
+                                    _schema.enums.find(element_type->get_custom_name()) != _schema.enums.end()));
 
         content << "    if (!" << field_name << ".empty())\n";
         content << "    {\n";
@@ -435,6 +438,11 @@ void CppHeaderGenerator::_generate_to_capnp_struct_field(std::ostringstream& con
         if (is_custom_element)
         {
             content << "            " << field_name << "[i].to_capnp_struct(list_builder[i]);\n";
+        }
+        else if (is_enum_element)
+        {
+            content << "            list_builder.set(i, static_cast<::curious::message::"
+                      << element_type->get_custom_name() << ">(" << field_name << "[i]));\n";
         }
         else
         {
@@ -466,7 +474,8 @@ void CppHeaderGenerator::_generate_to_capnp_struct_field(std::ostringstream& con
         content << "    " << field_name << ".to_capnp_struct(builder.init" << capnp_method << "());\n";
     }
     else if (field.get_kind() == Type::Kind::Enum ||
-               (field.get_kind() == Type::Kind::Custom && field.get_custom_name() == "MessageType"))
+               (field.get_kind() == Type::Kind::Custom && field.get_custom_name() == "MessageType") ||
+               (field.get_kind() == Type::Kind::Custom && _schema.enums.find(field.get_custom_name()) != _schema.enums.end()))
     {
         content << "    builder.set" << capnp_method << "(static_cast<::curious::message::"
                   << field.get_custom_name() << ">(" << field_name << "));\n";
@@ -494,6 +503,9 @@ void CppHeaderGenerator::_generate_from_capnp_struct_field(std::ostringstream& c
         const Type* element_type = field.get_element_type();
         bool is_custom_element = element_type && element_type->get_kind() == Type::Kind::Custom &&
                                    _schema.messages.find(element_type->get_custom_name()) != _schema.messages.end();
+        bool is_enum_element = element_type && (element_type->get_kind() == Type::Kind::Enum ||
+                                   (element_type->get_kind() == Type::Kind::Custom &&
+                                    _schema.enums.find(element_type->get_custom_name()) != _schema.enums.end()));
         std::string element_type_name = element_type ? element_type->get_custom_name() : "auto";
 
         content << "    if (reader.has" << capnp_method << "())\n";
@@ -509,6 +521,11 @@ void CppHeaderGenerator::_generate_from_capnp_struct_field(std::ostringstream& c
             content << "            " << element_type_name << " elem;\n";
             content << "            elem.from_capnp_struct(item);\n";
             content << "            " << field_name << ".push_back(std::move(elem));\n";
+        }
+        else if (is_enum_element)
+        {
+            content << "            " << field_name << ".push_back(static_cast<"
+                      << element_type_name << ">(item));\n";
         }
         else
         {
@@ -544,7 +561,8 @@ void CppHeaderGenerator::_generate_from_capnp_struct_field(std::ostringstream& c
         content << "    }\n";
     }
     else if (field.get_kind() == Type::Kind::Enum ||
-               (field.get_kind() == Type::Kind::Custom && field.get_custom_name() == "MessageType"))
+               (field.get_kind() == Type::Kind::Custom && field.get_custom_name() == "MessageType") ||
+               (field.get_kind() == Type::Kind::Custom && _schema.enums.find(field.get_custom_name()) != _schema.enums.end()))
     {
         content << "    " << field_name << " = static_cast<" << field.get_custom_name()
                   << ">(reader.get" << capnp_method << "());\n";

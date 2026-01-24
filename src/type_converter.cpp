@@ -25,10 +25,29 @@ std::string TypeConverter::to_capnp_method_name(const std::string& field_name)
     return result;
 }
 
+bool TypeConverter::is_enum_type(const Type& type, const std::set<std::string>& known_enums)
+{
+    if (type.is_enum())
+    {
+        return true;
+    }
+    // Check if a custom type is actually a known enum
+    if (type.is_custom())
+    {
+        const std::string& name = type.get_custom_name();
+        if (known_enums.find(name) != known_enums.end() || name == "MessageType")
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
 std::string TypeConverter::generate_from_capnp_code(const Type& field,
                                                       const std::string& reader_expr,
                                                       const std::string& target_var,
-                                                      int indent_level)
+                                                      int indent_level,
+                                                      const std::set<std::string>& known_enums)
 {
     std::ostringstream code;
     std::string ind = indent(indent_level);
@@ -52,7 +71,7 @@ std::string TypeConverter::generate_from_capnp_code(const Type& field,
             code << ind << target_var << " = " << reader_expr << ".get" << getter_name << "();\n";
         }
     }
-    else if (field.is_enum() || (field.is_custom() && field.get_custom_name() == "MessageType"))
+    else if (is_enum_type(field, known_enums))
     {
         // Enum types: direct static_cast (no has* method for primitive enums)
         std::string type_name = field.get_custom_name();
@@ -86,20 +105,18 @@ std::string TypeConverter::generate_from_capnp_code(const Type& field,
         {
             code << ind << "        " << target_var << ".push_back(item);\n";
         }
-        else if (element_type->is_custom() || element_type->is_enum())
+        else if (is_enum_type(*element_type, known_enums))
         {
             std::string elem_type_name = element_type->get_custom_name();
-            if (element_type->is_enum())
-            {
-                code << ind << "        " << target_var << ".push_back(static_cast<"
-                     << elem_type_name << ">(item));\n";
-            }
-            else
-            {
-                code << ind << "        " << elem_type_name << " elem;\n";
-                code << ind << "        elem.from_capnp_struct(item);\n";
-                code << ind << "        " << target_var << ".push_back(std::move(elem));\n";
-            }
+            code << ind << "        " << target_var << ".push_back(static_cast<"
+                 << elem_type_name << ">(item));\n";
+        }
+        else if (element_type->is_custom())
+        {
+            std::string elem_type_name = element_type->get_custom_name();
+            code << ind << "        " << elem_type_name << " elem;\n";
+            code << ind << "        elem.from_capnp_struct(item);\n";
+            code << ind << "        " << target_var << ".push_back(std::move(elem));\n";
         }
 
         code << ind << "    }\n";
@@ -153,7 +170,8 @@ std::string TypeConverter::generate_to_capnp_code(const Type& field,
                                                     const std::string& builder_expr,
                                                     const std::string& source_var,
                                                     const std::string& field_name_capnp,
-                                                    int indent_level)
+                                                    int indent_level,
+                                                    const std::set<std::string>& known_enums)
 {
     std::ostringstream code;
     std::string ind = indent(indent_level);
@@ -177,25 +195,21 @@ std::string TypeConverter::generate_to_capnp_code(const Type& field,
             code << ind << builder_expr << "." << setter_name << "(" << source_var << ");\n";
         }
     }
-    else if (field.is_custom() || field.is_enum())
+    else if (is_enum_type(field, known_enums))
     {
         std::string type_name = field.get_custom_name();
-
-        if (type_name == "MessageType" || field.is_enum())
-        {
-            // Enum: static cast
-            code << ind << builder_expr << "." << setter_name << "(static_cast<::curious::message::"
-                 << type_name << ">(" << source_var << "));\n";
-        }
-        else
-        {
-            // Custom message: call to_capnp_struct
-            code << ind << "{\n";
-            code << ind << "    auto nested_builder = " << builder_expr << "."
-                 << init_name << "();\n";
-            code << ind << "    " << source_var << ".to_capnp_struct(nested_builder);\n";
-            code << ind << "}\n";
-        }
+        // Enum: static cast
+        code << ind << builder_expr << "." << setter_name << "(static_cast<::curious::message::"
+             << type_name << ">(" << source_var << "));\n";
+    }
+    else if (field.is_custom())
+    {
+        // Custom message: call to_capnp_struct
+        code << ind << "{\n";
+        code << ind << "    auto nested_builder = " << builder_expr << "."
+             << init_name << "();\n";
+        code << ind << "    " << source_var << ".to_capnp_struct(nested_builder);\n";
+        code << ind << "}\n";
     }
     else if (field.is_list())
     {
@@ -212,7 +226,7 @@ std::string TypeConverter::generate_to_capnp_code(const Type& field,
         {
             code << ind << "        list_builder.set(i, " << source_var << "[i]);\n";
         }
-        else if (element_type->is_enum())
+        else if (is_enum_type(*element_type, known_enums))
         {
             std::string elem_type_name = element_type->get_custom_name();
             code << ind << "        list_builder.set(i, static_cast<::curious::message::"
@@ -253,7 +267,7 @@ std::string TypeConverter::generate_to_capnp_code(const Type& field,
         {
             code << ind << "        entry_builder.setValue(value);\n";
         }
-        else if (value_type->is_enum())
+        else if (is_enum_type(*value_type, known_enums))
         {
             std::string val_type_name = value_type->get_custom_name();
             code << ind << "        entry_builder.setValue(static_cast<::curious::message::"

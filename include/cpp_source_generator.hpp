@@ -2,6 +2,7 @@
 
 #include <string>
 #include <vector>
+#include <set>
 #include "schema.hpp"
 
 namespace curious::dsl::capnpgen
@@ -34,6 +35,9 @@ private:
 
     /// @brief Include prefix for header files (e.g., "network/").
     std::string _includePrefix;
+
+    /// @brief Set of known enum names for proper handling in TypeConverter.
+    std::set<std::string> _enumNames;
 
     /// @brief Resolve the output directory path.
     /// @param path The user-provided path.

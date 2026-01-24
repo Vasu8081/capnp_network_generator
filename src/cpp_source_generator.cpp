@@ -71,6 +71,12 @@ CppSourceGenerator::CppSourceGenerator(const Schema& schema,
     , _capnpHeaderName(capnp_header_name)
     , _includePrefix(include_prefix)
 {
+    // Initialize enum names set for proper type handling
+    for (const auto& [enum_name, enum_decl] : _schema.enums)
+    {
+        _enumNames.insert(enum_name);
+    }
+
     // Generate source for each message
     for (const auto& [message_name, message] : _schema.messages)
     {
@@ -165,8 +171,8 @@ std::string CppSourceGenerator::_generate_field_to_capnp(const Type& field, cons
         }
     }
 
-    // For non-enum types, use the TypeConverter
-    code << TypeConverter::generate_to_capnp_code(field, builder_expr, field_name, field_name, 1);
+    // For non-enum types, use the TypeConverter (pass known enums for proper list<enum> handling)
+    code << TypeConverter::generate_to_capnp_code(field, builder_expr, field_name, field_name, 1, _enumNames);
     return code.str();
 }
 
@@ -189,8 +195,8 @@ std::string CppSourceGenerator::_generate_field_from_capnp(const Type& field, co
         }
     }
 
-    // For non-enum types, use the TypeConverter
-    code << TypeConverter::generate_from_capnp_code(field, reader_expr, field_name, 1);
+    // For non-enum types, use the TypeConverter (pass known enums for proper list<enum> handling)
+    code << TypeConverter::generate_from_capnp_code(field, reader_expr, field_name, 1, _enumNames);
     return code.str();
 }
 
